@@ -188,20 +188,19 @@ namespace XiboClientWatchdog
                                     string status = null;
 
                                     // Look in the Xibo library for the status.json file
-                                    if (File.Exists(Path.Combine(clientLibrary, "status.json")))
+                                    using (FileStream file = new FileStream(Path.Combine(clientLibrary, "status.json"), FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite))
                                     {
-                                        using (FileStream file = new FileStream(Path.Combine(clientLibrary, "status.json"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                        using (StreamReader reader = new StreamReader(file))
                                         {
-                                            using (StreamReader reader = new StreamReader(file))
-                                            {
-                                                status = reader.ReadToEnd();
-                                            }
+                                            status = reader.ReadToEnd();
+                                        }
+
+                                        if (string.IsNullOrEmpty(status))
+                                        {
+                                            StreamWriter writer = new StreamWriter(file, Encoding.UTF8);
+                                            writer.Write("{\"lastActivity\":\"" + DateTime.Now.ToString() + "\"}");
                                         }
                                     }
-
-                                    // Compare the last accessed date with the current date and threshold
-                                    if (string.IsNullOrEmpty(status))
-                                        throw new Exception("Unable to find status file in " + clientLibrary);
 
                                     // Load the status file in to a JSON string
                                     var dict = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(status);
@@ -257,6 +256,11 @@ namespace XiboClientWatchdog
 
                     // Update the last time we checked
                     _lastCheck = DateTime.Now;
+                    
+                    using (StreamWriter writer = new StreamWriter(Path.Combine(Settings.Default.ClientLibrary, "status.json"), false, Encoding.UTF8))
+                    {
+                        writer.Write("{\"lastActivity\":\"" + _lastCheck.ToString() + "\"}");
+                    }
 
                     // Trigger Hardware Watchdog
                     if (!string.IsNullOrEmpty(extWatchdog)) {
